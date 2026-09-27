@@ -34,15 +34,16 @@ enum DeliveryEventType {
 }
 
 model User {
-  id            String         @id @default(uuid())
-  email         String         @unique
-  name          String?
-  avatarUrl     String?
-  googleId      String?        @unique
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  emailAccounts EmailAccount[]
-  campaigns     Campaign[]
+  id              String           @id @default(uuid())
+  email           String           @unique
+  name            String?
+  avatarUrl       String?
+  googleId        String?          @unique
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  emailAccounts   EmailAccount[]
+  campaigns       Campaign[]
+  slackConnection SlackConnection?
 
   @@index([email])
   @@map("users")
@@ -133,4 +134,23 @@ model DeliveryLog {
   @@index([eventType])
   @@index([createdAt])
   @@map("delivery_logs")
+}
+
+model SlackConnection {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slackUserId        String?
+  teamId             String?
+  teamName           String?
+  botAccessToken     String?
+  incomingWebhookUrl String?
+  channel            String?
+  channelId          String?
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([userId])
+  @@map("slack_connections")
 }

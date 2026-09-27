@@ -6,6 +6,7 @@ import { env } from './config/env';
 import { prisma } from './db';
 import authRoutes from './routes/auth.routes';
 import emailSchedulingRoutes from './routes/emailScheduling.routes';
+import slackRoutes from './routes/slack.routes';
 
 const app: Express = express();
 
@@ -45,6 +46,8 @@ app.use('/auth', authRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/emails', emailSchedulingRoutes);
 app.use('/emails', emailSchedulingRoutes);
+app.use('/api/slack', slackRoutes);
+app.use('/slack', slackRoutes);
 
 // Health Check Endpoint
 app.get('/health', async (_req: Request, res: Response) => {

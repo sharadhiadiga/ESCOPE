@@ -6,6 +6,7 @@ import { EmailAccountService } from '../src/services/emailAccount.service';
 import { CampaignService } from '../src/services/campaign.service';
 import { EmailSchedulingService } from '../src/services/emailScheduling.service';
 import { emailQueue } from '../src/queues/email.queue';
+import { redisConnection } from '../src/config/redis';
 import nodemailer from 'nodemailer';
 
 async function runDeliveryTests() {
@@ -212,6 +213,7 @@ async function runDeliveryTests() {
   } finally {
     nodemailer.createTransport = originalCreateTransport;
     await prisma.$disconnect();
+    await redisConnection.quit();
   }
 }
 

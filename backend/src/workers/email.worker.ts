@@ -110,9 +110,11 @@ export function createEmailWorker() {
         // Trigger optional Slack notification if hourly limit reached
         if (rateLimitRes.reason === 'HOURLY_LIMIT') {
           await SlackNotificationService.notifyRateLimitExceeded({
+            userId: scheduledEmail.campaign.userId,
             campaignId: scheduledEmail.campaign.id,
             campaignName: scheduledEmail.campaign.name,
             hourlyLimit,
+            retryAfterMs,
           });
         }
 

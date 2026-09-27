@@ -182,11 +182,17 @@ async function runThrottlingTests() {
 
     // 5. Slack unconfigured webhook safety
     await test('5. SlackNotificationService handles missing configuration without throwing', async () => {
+      await prisma.slackConnection.deleteMany({
+        where: { userId: testUser.id },
+      });
+
       const result = await SlackNotificationService.notifyRateLimitExceeded({
+        userId: testUser.id,
         campaignId: testCampaign.id,
         campaignName: 'Test Campaign',
         hourlyLimit: 200,
       });
+
       if (result !== false) {
         throw new Error('Expected notifyRateLimitExceeded to return false when unconfigured');
       }
@@ -201,6 +207,7 @@ async function runThrottlingTests() {
 
       try {
         const result = await SlackNotificationService.notifyRateLimitExceeded({
+          userId: testUser.id,
           campaignId: testCampaign.id,
           campaignName: 'Test Campaign',
           hourlyLimit: 200,
