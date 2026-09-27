@@ -1,290 +1,485 @@
-# ReachInbox - Full-Stack Email Scheduling & Sending System
+3. Add a **README** that includes:
+    - How to run **backend** (Express, Redis, DB, BullMQ worker)
+    - How to run **frontend**
+    - How to set up **Ethereal Email** and env variables
+    - Architecture overview:
+        - How scheduling works
+        - How persistence on restart is handled
+        - How rate limiting & concurrency are implemented
+    - List of **features implemented**, mapped to:
+        - Backend: scheduler, persistence, rate limiting, concurrency
+        - Frontend: login, dashboard, compose, tables, etc.
+     
+Check the containers:
 
-A production-quality email scheduling system inspired by ReachInbox.
+docker compose ps
 
-## Tech Stack
-- **Backend:** Node.js, Express.js, TypeScript, PostgreSQL, BullMQ, Redis, Nodemailer (Ethereal), Elasticsearch, Google OAuth, Slack OAuth
-- **Frontend:** React, TypeScript, Vite, Tailwind CSS
-- **Infrastructure:** Docker & Docker Compose for PostgreSQL, Redis, and Elasticsearch
+The following services should be running:
 
-## Folder Structure
-```
-ESCOPE/
-├── backend/            # Express API & BullMQ Worker
-│   ├── src/
-│   │   ├── config/     # Environment & App Config
-│   │   ├── controllers/# Route Controllers
-│   │   ├── db/         # Database Connections & Migrations
-│   │   ├── integrations/# OAuth & External APIs (Slack/Google/Ethereal)
-│   │   ├── middleware/ # Express Middleware
-│   │   ├── models/     # Data Models / Queries
-│   │   ├── queues/     # BullMQ Queue definitions
-│   │   ├── routes/     # Express API Routes
-│   │   ├── services/   # Business Logic
-│   │   ├── types/      # TypeScript Types
-│   │   ├── utils/      # Helpers & Utilities
-│   │   ├── workers/    # BullMQ Worker Handlers
-│   │   ├── app.ts      # Express App Setup
-│   │   ├── server.ts   # Express Server Entrypoint
-│   │   └── worker.ts   # BullMQ Worker Entrypoint
-│   ├── .env.example
-│   ├── package.json
-│   └── tsconfig.json
-├── frontend/           # Vite React App
-│   ├── src/
-│   │   ├── api/        # Axios/Fetch API Clients
-│   │   ├── components/ # Reusable UI Components
-│   │   ├── context/    # React Contexts
-│   │   ├── hooks/      # Custom React Hooks
-│   │   ├── layouts/    # Page Layout Components
-│   │   ├── pages/      # Page Views
-│   │   ├── services/   # Frontend Services
-│   │   ├── types/      # TypeScript Types
-│   │   ├── utils/      # UI Helpers & Utilities
-│   │   ├── App.tsx     # Root App Shell
-│   │   ├── main.tsx    # React Entrypoint
-│   │   └── index.css   # Tailwind & Global Styles
-│   ├── .env.example
-│   ├── index.html
-│   ├── package.json
-│   ├── tailwind.config.js
-│   ├── vite.config.ts
-│   └── tsconfig.json
-├── docker-compose.yml  # Local services (PostgreSQL, Redis, Elasticsearch)
-├── README.md
-└── .gitignore
-```
-
-## Setup & Running Instructions
-
-### 1. Start Infrastructure (Docker Compose)
-```bash
-docker-compose up -d
-```
-This spins up:
-- **PostgreSQL:** `localhost:5432`
-- **Redis:** `localhost:6379`
-- **Elasticsearch:** `localhost:9200`
-
-### 2. Backend Setup & Run
-```bash
+PostgreSQL
+Redis
+Elasticsearch
+Step 2 — Install Backend Dependencies
 cd backend
 npm install
-npm run dev
-```
-Express server runs on `http://localhost:5000`
-Health check: `http://localhost:5000/health`
+Step 3 — Configure Environment Variables
 
-To start the BullMQ worker:
-```bash
+Create the environment file:
+
+cp .env.example .env
+
+Configure the required values in:
+
+backend/.env
+
+The required environment variables are documented in:
+
+backend/.env.example
+
+These include configuration for:
+
+PostgreSQL
+Redis
+Elasticsearch
+Google OAuth
+Slack OAuth
+Session security
+Worker concurrency
+Email delivery
+Step 4 — Setup Database
+
+Run Prisma migrations:
+
+npx prisma migrate deploy
+
+Generate Prisma Client:
+
+npx prisma generate
+Step 5 — Start Express Backend
+npm run dev
+
+The backend runs on:
+
+http://localhost:5000
+
+Health check:
+
+http://localhost:5000/health
+Step 6 — Start BullMQ Worker
+
+Open another terminal:
+
 cd backend
 npm run worker
-```
 
-### 3. Frontend Setup & Run
-```bash
+The worker runs separately from the Express server and processes scheduled
+email jobs from the BullMQ queue.
+
+2. How to Run the Frontend
+
+Open another terminal:
+
 cd frontend
 npm install
+
+Start the development server:
+
 npm run dev
-```
-Vite dev server runs on `http://localhost:5173` with reverse proxy to `http://localhost:5000`.
 
-## Phase 2 — Database Architecture & Persistence
+The frontend runs on:
 
-### 1. Database & ORM Stack
-- **Database Engine:** PostgreSQL (running on `localhost:5432`)
-- **ORM & Migration Tool:** Prisma ORM (`@prisma/client` & `prisma` CLI v5.22.0)
-- **Environment Variable:** `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/reachinbox`
+http://localhost:5173
 
-### 2. Schema Overview
-The relational schema models five core entities connected via strict foreign key relationships and cascade deletion rules:
+Open the URL in your browser and sign in using Google OAuth.
 
-- **`User` (`users`):** Tenant entity identified by UUID and unique email. Supports future Google OAuth (`googleId`).
-- **`EmailAccount` (`email_accounts`):** Sender SMTP configurations linked to a User (`User 1:N EmailAccounts`). Credentials excluded from standard API queries.
-- **`Campaign` (`campaigns`):** Parent campaign/schedule configuration holding email subject, body, launch `startAt`, `delayBetweenEmailsMs`, `hourlyLimit`, and status (`DRAFT`, `SCHEDULED`, `PROCESSING`, `COMPLETED`, `CANCELLED`, `FAILED`).
-- **`ScheduledEmail` (`scheduled_emails`):** Individual scheduled emails attached to a campaign (`Campaign 1:N ScheduledEmails`). Includes unique `idempotencyKey`, `scheduledAt`, `sentAt`, `status`, `attemptCount`, and `queueJobId`.
-- **`DeliveryLog` (`delivery_logs`):** Granular delivery audit log for every execution event (`ScheduledEmail 1:N DeliveryLogs`).
+3. Ethereal Email Setup
 
-### 3. Database Indexes & Constraints
-- **Unique Constraints:** `users.email`, `users.googleId`, `scheduled_emails.idempotencyKey`
-- **Indexes:** 
-  - `users`: `email`
-  - `email_accounts`: `userId`, `email`
-  - `campaigns`: `userId`, `status`, `startAt`
-  - `scheduled_emails`: `campaignId`, `recipientEmail`, `scheduledAt`, `status`, `sentAt`, `queueJobId`, `idempotencyKey`
-  - `delivery_logs`: `scheduledEmailId`, `eventType`, `createdAt`
+ESCOPE uses Ethereal Email as the SMTP service for email delivery during
+development and testing.
 
-### 4. Running Migrations & Generating ORM Client
-To run migrations and apply schema changes:
-```bash
+Ethereal provides a test SMTP server where sent emails can be previewed
+without sending real emails to external recipients.
+
+Create an Ethereal Account
+
+Create an account at:
+
+https://ethereal.email/
+
+After creating the account, obtain the SMTP credentials provided by
+Ethereal.
+
+Typical SMTP configuration:
+
+Host: smtp.ethereal.email
+Port: 587
+Security: STARTTLS
+
+Configure the SMTP credentials using the environment variables documented
+in:
+
+backend/.env.example
+
+Do not commit .env or SMTP passwords to Git.
+
+The repository already excludes environment files through .gitignore.
+
+4. Architecture Overview
+
+ESCOPE uses PostgreSQL as the persistent source of truth and Redis/BullMQ
+for asynchronous email processing.
+
+                  ┌──────────────────┐
+                  │   React Frontend │
+                  └────────┬─────────┘
+                           │
+                           ▼
+                  ┌──────────────────┐
+                  │ Express Backend  │
+                  └────────┬─────────┘
+                           │
+             ┌─────────────┼─────────────┐
+             ▼             ▼             ▼
+      ┌────────────┐ ┌────────────┐ ┌──────────────┐
+      │ PostgreSQL │ │ Redis +    │ │ Elasticsearch │
+      │            │ │ BullMQ     │ │              │
+      │ Persistence│ │ Queue      │ │ Search       │
+      └────────────┘ └─────┬──────┘ └──────────────┘
+                            │
+                            ▼
+                    ┌──────────────┐
+                    │ BullMQ Worker│
+                    └──────┬───────┘
+                           │
+                           ▼
+                    ┌──────────────┐
+                    │ Ethereal SMTP│
+                    └──────────────┘
+5. How Scheduling Works
+
+When a user creates a campaign:
+
+The frontend sends the campaign details to the backend.
+The backend validates the campaign and recipient list.
+A campaign is stored in PostgreSQL.
+Individual scheduled email records are created for each recipient.
+A BullMQ job is created for every email.
+BullMQ uses delayed jobs to execute emails at the configured time.
+The BullMQ worker picks up the jobs when they become available.
+The worker checks rate limits before sending.
+The email is sent through the configured SMTP account.
+The email status and delivery logs are updated in PostgreSQL.
+The email is indexed in Elasticsearch for searching.
+
+Example:
+
+Campaign
+   │
+   ▼
+PostgreSQL
+   │
+   ▼
+BullMQ Delayed Job
+   │
+   ▼
+Worker
+   │
+   ▼
+Rate Limit Check
+   │
+   ▼
+Ethereal SMTP
+   │
+   ▼
+Delivery Status
+
+The system does not use cron, node-cron, or Agenda for scheduling.
+
+6. Persistence and Restart Safety
+
+Scheduled emails are stored in PostgreSQL before they are processed.
+
+PostgreSQL acts as the source of truth for scheduled email records.
+
+BullMQ stores the asynchronous jobs in Redis.
+
+When the backend/worker restarts, the application checks the database for
+scheduled emails that still require queue processing and restores missing
+jobs to BullMQ.
+
+Therefore, scheduled emails are not dependent only on the process remaining
+running.
+
+PostgreSQL
+    │
+    │ persisted scheduled emails
+    ▼
+BullMQ / Redis
+    │
+    │ delayed jobs
+    ▼
+Worker
+
+The system also uses unique idempotency keys and deterministic BullMQ job
+IDs to prevent duplicate scheduling.
+
+7. Rate Limiting
+
+ESCOPE supports two configurable sending controls.
+
+Minimum Delay Between Emails
+
+Each campaign can define the minimum delay between individual emails.
+
+For example:
+
+Delay between emails = 2 seconds
+
+The scheduler offsets the jobs so that emails are processed with the
+configured spacing.
+
+Hourly Rate Limit
+
+Each campaign can also define an hourly sending limit.
+
+For example:
+
+Hourly limit = 200 emails
+
+Redis is used to maintain the rate-limit state.
+
+The rate limiter uses atomic Redis operations so that multiple worker
+processes cannot bypass the configured limit simultaneously.
+
+When the hourly limit is reached:
+
+Job
+ │
+ ▼
+Rate Limit Check
+ │
+ ├── Allowed ───────► Send Email
+ │
+ └── Limit Reached
+          │
+          ▼
+      Reschedule
+          │
+          ▼
+     Try Again Later
+
+Jobs are delayed and rescheduled rather than dropped.
+
+A delivery log is also created for the rescheduling event.
+
+8. Worker Concurrency
+
+BullMQ workers support configurable concurrency.
+
+The concurrency can be configured through the environment configuration.
+
+Example:
+
+WORKER_CONCURRENCY=5
+
+This allows multiple jobs to be processed concurrently.
+
+The Redis rate limiter still controls the overall sending rate, ensuring
+that increasing worker concurrency does not bypass the configured limits.
+
+                 BullMQ Worker
+              Concurrency = 5
+                     │
+       ┌─────────────┼─────────────┐
+       ▼             ▼             ▼
+     Job 1         Job 2         Job 3
+       │             │             │
+       └─────────────┼─────────────┘
+                     ▼
+              Redis Rate Limiter
+                     │
+                     ▼
+                 SMTP Send
+9. Features Implemented
+Backend
+Scheduler
+BullMQ-based email scheduler
+Delayed email jobs
+Configurable campaign start time
+Configurable delay between emails
+No cron-based scheduling
+Persistence
+PostgreSQL database
+Prisma ORM
+Campaign persistence
+Scheduled email persistence
+Delivery logs
+Restart-safe queue recovery
+Database-backed source of truth
+Idempotency
+Unique idempotency keys
+Deterministic BullMQ job IDs
+Atomic email status transitions
+Prevents duplicate email delivery
+Rate Limiting
+Configurable hourly sending limit
+Configurable delay between emails
+Redis-based rate limiter
+Atomic rate-limit checks
+Automatic rescheduling when limits are reached
+Delivery logs for rescheduled emails
+Concurrency
+BullMQ worker
+Configurable worker concurrency
+Multiple jobs can be processed concurrently
+Shared Redis rate limiter keeps sending limits safe across workers
+Email Delivery
+Nodemailer SMTP integration
+Ethereal Email
+Multiple sender accounts
+Delivery status tracking
+Failed email handling
+Search
+Elasticsearch integration
+Search by recipient
+Search by subject
+Search by email body
+User-level search isolation
+Integrations
+Google OAuth
+Slack OAuth
+Slack rate-limit notifications
+BullMQ monitoring dashboard
+10. Frontend Features
+Login
+Google OAuth login
+Authenticated dashboard
+User name, email, and avatar
+Logout
+Dashboard
+Scheduled email count
+Sent email count
+Email search
+Infrastructure health information
+BullMQ Dashboard access
+Compose Campaign
+Campaign name
+Sender email account selection
+Email subject
+Email body
+CSV lead upload
+Multiline lead input
+Email validation
+Invalid lead detection
+Start date/time
+Delay between emails
+Hourly sending limit
+Email Tables
+Scheduled Emails
+
+Displays:
+
+Recipient
+Subject
+Email preview
+Campaign
+Status
+Scheduled time
+Sent Emails
+
+Displays:
+
+Recipient
+Subject
+Email preview
+Campaign
+Status
+Sent time
+Search
+
+Users can search emails by:
+
+Recipient
+Subject
+Body
+
+Search uses Elasticsearch on the backend.
+
+UI States
+
+The frontend includes:
+
+Loading states
+Empty states
+Error states
+Status badges
+Refresh controls
+Responsive layout
+11. BullMQ Dashboard
+
+ESCOPE includes a BullMQ monitoring dashboard.
+
+Open:
+
+http://localhost:5000/admin/queues
+
+The dashboard provides visibility into:
+
+Waiting jobs
+Active jobs
+Completed jobs
+Failed jobs
+Delayed jobs
+Paused jobs
+
+This allows the email processing pipeline to be monitored in real time.
+
+12. Important URLs
+Service	URL
+Frontend	http://localhost:5173
+Backend	http://localhost:5000
+Backend Health	http://localhost:5000/health
+BullMQ Dashboard	http://localhost:5000/admin/queues
+Elasticsearch	http://localhost:9200
+13. Project Structure
+ESCOPE/
+│
+├── backend/
+│   ├── prisma/
+│   ├── src/
+│   │   ├── config/
+│   │   ├── controllers/
+│   │   ├── middleware/
+│   │   ├── queues/
+│   │   ├── routes/
+│   │   ├── services/
+│   │   └── workers/
+│   ├── tests/
+│   ├── .env.example
+│   └── package.json
+│
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   ├── types/
+│   │   └── App.tsx
+│   └── package.json
+│
+├── docker-compose.yml
+├── .gitignore
+└── README.md
+14. Testing
+
+Backend TypeScript check:
+
 cd backend
-npm run prisma:migrate
-```
+npx tsc --noEmit
 
-To regenerate the Prisma Client:
-```bash
-cd backend
-npm run prisma:generate
-```
+Backend tests:
 
-### 5. Verifying Database Connectivity & Tests
-Run the comprehensive database integration test suite (connection, CRUD, unique constraints, relationships, and status updates):
-```bash
-cd backend
 npm test
-```
 
-Verify live backend health with database status:
-```bash
-curl http://localhost:5000/health
-```
-Expected output:
-```json
-{
-  "status": "ok",
-  "timestamp": "2026-09-26T19:39:03.418Z",
-  "uptime": 26.3,
-  "service": "reachinbox-backend",
-  "env": "development",
-  "db": "connected"
-}
-```
+Frontend production build:
 
-## Phase 3 — Real Google OAuth Authentication
-
-### 1. Google Cloud Console Configuration
-To enable real Google OAuth login locally or in production:
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/) -> APIs & Services -> Credentials.
-2. Create an **OAuth 2.0 Client ID** (Web application).
-3. Set **Authorized JavaScript Origins**:
-   - `http://localhost:5173`
-   - `http://localhost:5000`
-4. Set **Authorized Redirect URIs**:
-   - `http://localhost:5000/auth/google/callback`
-   - `http://localhost:5000/api/auth/google/callback`
-5. Copy the generated Client ID and Client Secret into `backend/.env`:
-   ```env
-   GOOGLE_CLIENT_ID=your_actual_google_client_id
-   GOOGLE_CLIENT_SECRET=your_actual_google_client_secret
-   GOOGLE_CALLBACK_URL=http://localhost:5000/auth/google/callback
-   SESSION_SECRET=a_random_secure_session_secret_string
-   FRONTEND_URL=http://localhost:5173
-   ```
-
-### 2. OAuth Authentication Flow
-- **Initiate Login:** Frontend navigates user to `http://localhost:5000/auth/google`.
-- **Scopes Requested:** `openid`, `email`, `profile`.
-- **Callback Handling:** Passport receives profile, extracts `googleId`, `email`, `name`, and `avatarUrl`.
-- **User Record Resolution:**
-  1. Searches PostgreSQL `users` table for `googleId`.
-  2. If not found, searches by `email`. If user exists, links `googleId`.
-  3. If user doesn't exist, creates a new `User` record.
-- **Session Cookie:** Sets HTTP-only `connect.sid` cookie (`maxAge: 24h`, `sameSite: lax`).
-- **Redirect:** Redirects user to `http://localhost:5173/dashboard`.
-
-### 3. API Endpoints
-- `GET /auth/google` — Triggers Google OAuth 2.0 redirect.
-- `GET /auth/google/callback` — Handles Google OAuth callback and session creation.
-- `GET /auth/me` — Returns authenticated user profile (`401` if unauthenticated).
-- `POST /auth/logout` — Destroys express session and clears cookie (`connect.sid`).
-
-### 4. Running Integration & Auth Tests
-```bash
-cd backend
-npm test
-```
-Runs `tests/db.test.ts`, `tests/auth.test.ts`, and `tests/scheduling.test.ts` covering 19 automated verification suites.
-
-## Phase 4 — Email Scheduling & BullMQ Engine Architecture
-
-### 1. Architecture Overview
-The email scheduling engine decoupled API request handling from job execution using PostgreSQL persistence and Redis-backed BullMQ delayed queues:
-
-```
-[ Frontend / API ] ──(Auth & Validate)──> [ PostgreSQL ] ──(QUEUED Record)
-                                              │
-                                  (Enqueue Delayed Job)
-                                              │
-                                              ▼
-                                    [ Redis / BullMQ ] ──(email-scheduling)
-                                              │
-                                    (Delayed Trigger)
-                                              │
-                                              ▼
-                                    [ Standalone Worker ] ──(State & Log)──> [ PostgreSQL ]
-                                              │
-                                      (Mock Delivery)
-                                              ▼
-                                    [ Email Provider ]
-```
-
-### 2. BullMQ Queue & Worker Architecture
-- **Queue Name:** `email-scheduling`
-- **Redis Connection:** Configured via `REDIS_URL` (`redis://localhost:6379`) with `maxRetriesPerRequest: null`.
-- **Worker Process:** Separate standalone process (`npm run worker`) with configurable concurrency (`WORKER_CONCURRENCY=5`).
-- **Delayed Execution:** Delay calculated as `delay = Math.max(0, new Date(scheduledAt).getTime() - Date.now())`. No Node.js memory timers or cron loops are used.
-- **Restart Persistence:** Scheduled jobs remain in Redis and PostgreSQL across server or worker process restarts. When the worker resumes, pending delayed jobs trigger at their exact `scheduledAt` timestamp.
-
-### 3. Idempotency & State Transitions
-- **Deterministic Job IDs:** BullMQ job IDs follow `email_{scheduledEmailId}`.
-- **Deterministic Idempotency Key:** `idempotency_{campaignId}_{recipientEmail}_{scheduledAtTimestamp}`. Duplicate scheduling attempts return existing records without creating duplicate DB records or Redis jobs.
-- **Atomic State Transitions:**
-  - `SCHEDULED` / `QUEUED` ➔ `PROCESSING` (Atomic DB update `where: { status: { notIn: ['SENT', 'PROCESSING'] } }`)
-  - `PROCESSING` ➔ `SENT` (On delivery completion, sets `sentAt`)
-  - `PROCESSING` ➔ `FAILED` (On delivery failure, sets `errorMessage`)
-- **Audit Trails:** Every state change creates a `DeliveryLog` entry (`QUEUED`, `PROCESSING`, `SENT`, `FAILED`).
-
-### 4. API Specification
-
-#### `POST /api/emails/schedule` (Authenticated)
-**Request Header:** Cookie session (`connect.sid`) or credentials included.
-
-**Request Body:**
-```json
-{
-  "campaignId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "recipientEmail": "lead@example.com",
-  "recipientName": "Jane Doe",
-  "subject": "Exclusive Demo Invitation",
-  "body": "Hi Jane, let's schedule a call.",
-  "scheduledAt": "2026-09-27T02:30:00.000Z"
-}
-```
-
-**Response (201 Created):**
-```json
-{
-  "success": true,
-  "data": {
-    "scheduledEmailId": "fab6c7b6-102b-4321-a571-ddf3a5b98bf4",
-    "queueJobId": "email_fab6c7b6-102b-4321-a571-ddf3a5b98bf4",
-    "scheduledAt": "2026-09-27T02:30:00.000Z",
-    "status": "QUEUED",
-    "isDuplicate": false
-  }
-}
-```
-
-### 5. Running API & Worker Processes
-
-Start Express API server:
-```bash
-cd backend
-npm run dev
-```
-
-Start Standalone BullMQ Worker process:
-```bash
-cd backend
-npm run worker
-```
-
-Run Full Automated Test Suite (Database, Auth & Scheduling):
-```bash
-cd backend
-npm test
-```
-
-
-
+cd frontend
+npm run build
