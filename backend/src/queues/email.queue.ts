@@ -1,7 +1,7 @@
 import { Queue } from 'bullmq';
 import { redisConnection } from '../config/redis';
 
-export const EMAIL_QUEUE_NAME = 'email-scheduling';
+export const EMAIL_QUEUE_NAME = process.env.NODE_ENV === 'test' ? 'email-scheduling-test' : 'email-scheduling';
 
 export interface EmailJobData {
   scheduledEmailId: string;

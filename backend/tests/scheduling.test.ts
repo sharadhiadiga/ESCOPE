@@ -1,9 +1,11 @@
+process.env.NODE_ENV = 'test';
 import { prisma, EmailStatus, DeliveryEventType } from '../src/db';
 import { UserService } from '../src/services/user.service';
 import { EmailAccountService } from '../src/services/emailAccount.service';
 import { CampaignService } from '../src/services/campaign.service';
 import { EmailSchedulingService } from '../src/services/emailScheduling.service';
 import { EmailDeliveryService } from '../src/services/emailDelivery.service';
+import { RateLimiterService } from '../src/services/rateLimiter.service';
 import { createEmailWorker } from '../src/workers/email.worker';
 import { emailQueue } from '../src/queues/email.queue';
 import { redisConnection } from '../src/config/redis';
@@ -64,6 +66,7 @@ async function runSchedulingTests() {
       subject: 'Phase 4 Outreach',
       body: 'Testing BullMQ Scheduling',
       startAt: new Date(),
+      delayBetweenEmailsMs: 0,
     });
 
     // 1 & 3 & 4 & 5 & 6. Schedule email, check PostgreSQL persistence & BullMQ delayed job creation
@@ -147,6 +150,7 @@ async function runSchedulingTests() {
 
     // 7 & 8 & 9. Start Worker process to process the scheduled email job
     await test('7, 8, 9. Worker processes delayed job, updates status to SENT, and creates DeliveryLog', async () => {
+      await RateLimiterService.resetRateLimits(testCampaign.id, testAccount.id);
       worker = createEmailWorker();
 
       // Wait for worker to pick up and process the delayed job (wait ~2.5s)

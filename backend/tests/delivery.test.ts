@@ -1,4 +1,5 @@
 import { EmailDeliveryService } from '../src/services/emailDelivery.service';
+process.env.NODE_ENV = 'test';
 import { prisma, EmailStatus, DeliveryEventType } from '../src/db';
 import { UserService } from '../src/services/user.service';
 import { EmailAccountService } from '../src/services/emailAccount.service';

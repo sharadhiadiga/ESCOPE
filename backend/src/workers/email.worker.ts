@@ -1,10 +1,12 @@
 import { Worker, Job } from 'bullmq';
-import { EMAIL_QUEUE_NAME, EmailJobData } from '../queues/email.queue';
+import { EMAIL_QUEUE_NAME, EmailJobData, addScheduledEmailJob } from '../queues/email.queue';
 import { redisConnection } from '../config/redis';
 import { env } from '../config/env';
 import { prisma, EmailStatus, DeliveryEventType } from '../db';
 import { EmailDeliveryService } from '../services/emailDelivery.service';
 import { EmailAccountService } from '../services/emailAccount.service';
+import { RateLimiterService } from '../services/rateLimiter.service';
+import { SlackNotificationService } from '../services/slackNotification.service';
 
 export function createEmailWorker() {
   const worker = new Worker<EmailJobData>(
@@ -69,7 +71,66 @@ export function createEmailWorker() {
         throw new Error('Sender email account credentials not found in database');
       }
 
-      // 5. Execute Real Email Delivery via Nodemailer Ethereal Provider
+      // 5. Atomic Rate Limiting & Throttling Check
+      const hourlyLimit = scheduledEmail.campaign.hourlyLimit ?? env.MAX_EMAILS_PER_HOUR;
+      const delayBetweenEmailsMs = scheduledEmail.campaign.delayBetweenEmailsMs ?? env.MIN_DELAY_BETWEEN_EMAILS_MS;
+
+      const rateLimitRes = await RateLimiterService.reserveSendPermission({
+        campaignId: scheduledEmail.campaign.id,
+        senderAccountId: scheduledEmail.campaign.senderAccountId,
+        hourlyLimit,
+        delayBetweenEmailsMs,
+      });
+
+      if (!rateLimitRes.allowed) {
+        const retryAfterMs = rateLimitRes.retryAfterMs || 2000;
+        console.warn(
+          `[Worker] ⏳ Rate limit hit (${rateLimitRes.reason}) for email ${scheduledEmailId}. Rescheduling in ${retryAfterMs}ms.`
+        );
+
+        // Revert status to QUEUED so it remains pending
+        await prisma.scheduledEmail.update({
+          where: { id: scheduledEmailId },
+          data: { status: EmailStatus.QUEUED },
+        });
+
+        // Log RESCHEDULED delivery log
+        await prisma.deliveryLog.create({
+          data: {
+            scheduledEmailId,
+            eventType: DeliveryEventType.RESCHEDULED,
+            metadata: {
+              reason: rateLimitRes.reason,
+              retryAfterMs,
+              jobId: job.id,
+            },
+          },
+        });
+
+        // Trigger optional Slack notification if hourly limit reached
+        if (rateLimitRes.reason === 'HOURLY_LIMIT') {
+          await SlackNotificationService.notifyRateLimitExceeded({
+            campaignId: scheduledEmail.campaign.id,
+            campaignName: scheduledEmail.campaign.name,
+            hourlyLimit,
+          });
+        }
+
+        // Remove active job and re-enqueue in BullMQ with delay
+        await job.remove().catch(() => {});
+        await addScheduledEmailJob(
+          {
+            scheduledEmailId: scheduledEmail.id,
+            campaignId: scheduledEmail.campaignId,
+            idempotencyKey: scheduledEmail.idempotencyKey,
+          },
+          retryAfterMs
+        );
+
+        return;
+      }
+
+      // 6. Execute Real Email Delivery via Nodemailer Ethereal Provider
       try {
         const deliveryResult = await EmailDeliveryService.sendEmail({
           to: scheduledEmail.recipientEmail,
@@ -89,7 +150,7 @@ export function createEmailWorker() {
 
         const sentAt = new Date();
 
-        // 6. State Transition on Success: PROCESSING -> SENT
+        // 7. State Transition on Success: PROCESSING -> SENT
         await prisma.scheduledEmail.update({
           where: { id: scheduledEmailId },
           data: {
@@ -122,7 +183,7 @@ export function createEmailWorker() {
         const errorMessage = err?.message || 'Unknown error during email delivery execution';
         console.error(`[Worker] ❌ Failed to deliver email ${scheduledEmailId}: ${errorMessage}`);
 
-        // 7. State Transition on Failure: PROCESSING -> FAILED
+        // 8. State Transition on Failure: PROCESSING -> FAILED
         await prisma.scheduledEmail.update({
           where: { id: scheduledEmailId },
           data: {

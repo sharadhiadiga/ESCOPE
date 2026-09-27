@@ -23,6 +23,7 @@ const envSchema = z.object({
   SLACK_CLIENT_ID: z.string().optional().default(''),
   SLACK_CLIENT_SECRET: z.string().optional().default(''),
   SLACK_REDIRECT_URI: z.string().optional().default('http://localhost:5000/api/slack/callback'),
+  SLACK_WEBHOOK_URL: z.string().optional().default(''),
 
   ETHEREAL_HOST: z.string().optional().default('smtp.ethereal.email'),
   ETHEREAL_PORT: z.string().default('587').transform((val) => parseInt(val, 10)),
