@@ -6,7 +6,10 @@ import { env } from './config/env';
 import { prisma } from './db';
 import authRoutes from './routes/auth.routes';
 import emailSchedulingRoutes from './routes/emailScheduling.routes';
+import emailAccountRoutes from './routes/emailAccount.routes';
 import slackRoutes from './routes/slack.routes';
+import { setupBullBoard } from './config/bullBoard';
+import { requireAuth } from './middleware/auth';
 
 const app: Express = express();
 
@@ -41,11 +44,17 @@ configurePassport();
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Mount Bull Board Queue Dashboard (Protected by requireAuth)
+const bullBoardAdapter = setupBullBoard();
+app.use('/admin/queues', requireAuth, bullBoardAdapter.getRouter());
+
 // Mount Routes
 app.use('/auth', authRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/emails', emailSchedulingRoutes);
 app.use('/emails', emailSchedulingRoutes);
+app.use('/api/email-accounts', emailAccountRoutes);
+app.use('/email-accounts', emailAccountRoutes);
 app.use('/api/slack', slackRoutes);
 app.use('/slack', slackRoutes);
 

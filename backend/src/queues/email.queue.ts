@@ -15,11 +15,12 @@ export interface EmailJobData {
 export const emailQueue = new Queue<EmailJobData>(EMAIL_QUEUE_NAME, {
   connection: redisConnection,
   defaultJobOptions: {
-    removeOnComplete: true,
-    removeOnFail: false,
+    removeOnComplete: { count: 100 },
+    removeOnFail: { count: 100 },
     attempts: 1,
   },
 });
+
 
 export async function addScheduledEmailJob(data: EmailJobData, delayMs: number) {
   const sanitizeId = data.scheduledEmailId.replace(/:/g, '_');

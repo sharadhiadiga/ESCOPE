@@ -7,6 +7,7 @@ import { EmailDeliveryService } from '../services/emailDelivery.service';
 import { EmailAccountService } from '../services/emailAccount.service';
 import { RateLimiterService } from '../services/rateLimiter.service';
 import { SlackNotificationService } from '../services/slackNotification.service';
+import { ElasticsearchService } from '../services/elasticsearch.service';
 
 export function createEmailWorker() {
   const worker = new Worker<EmailJobData>(
@@ -53,6 +54,9 @@ export function createEmailWorker() {
         return;
       }
 
+      // Update status in Elasticsearch (non-blocking)
+      await ElasticsearchService.updateEmailStatus(scheduledEmailId, EmailStatus.PROCESSING);
+
       // Log PROCESSING state transition
       await prisma.deliveryLog.create({
         data: {
@@ -93,6 +97,9 @@ export function createEmailWorker() {
           where: { id: scheduledEmailId },
           data: { status: EmailStatus.QUEUED },
         });
+
+        // Update status in Elasticsearch (non-blocking)
+        await ElasticsearchService.updateEmailStatus(scheduledEmailId, EmailStatus.QUEUED);
 
         // Log RESCHEDULED delivery log
         await prisma.deliveryLog.create({
@@ -161,6 +168,9 @@ export function createEmailWorker() {
           },
         });
 
+        // Update status in Elasticsearch (non-blocking)
+        await ElasticsearchService.updateEmailStatus(scheduledEmailId, EmailStatus.SENT, { sentAt });
+
         // Log SENT delivery log with safe metadata (no credentials, includes previewUrl if available)
         await prisma.deliveryLog.create({
           data: {
@@ -193,6 +203,9 @@ export function createEmailWorker() {
             errorMessage,
           },
         });
+
+        // Update status in Elasticsearch (non-blocking)
+        await ElasticsearchService.updateEmailStatus(scheduledEmailId, EmailStatus.FAILED);
 
         // Log FAILED delivery log
         await prisma.deliveryLog.create({

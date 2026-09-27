@@ -1,11 +1,12 @@
 import { prisma, EmailStatus, DeliveryEventType, CampaignStatus } from '../db';
 import { addScheduledEmailJob } from '../queues/email.queue';
+import { ElasticsearchService } from './elasticsearch.service';
 import { z } from 'zod';
 
 export const scheduleEmailSchema = z.object({
   campaignId: z.string().uuid(),
   recipientEmail: z.string().email(),
-  recipientName: z.string().optional(),
+  recipientName: z.string().nullable().optional(),
   subject: z.string().min(1, 'Subject is required'),
   body: z.string().min(1, 'Body is required'),
   scheduledAt: z.coerce.date().refine((date) => !isNaN(date.getTime()), {
@@ -39,12 +40,11 @@ export class EmailSchedulingService {
       throw new Error('Campaign sender account not found or unauthorized');
     }
 
-    // 2. Reject scheduling in the far past (allow 10 second buffer for latency)
+    // 2. Normalize scheduled date (if scheduled in the past or now, schedule for immediate delivery)
     const now = Date.now();
-    const scheduledTime = validated.scheduledAt.getTime();
-    if (scheduledTime < now - 10000) {
-      throw new Error('Cannot schedule an email in the past');
-    }
+    const rawScheduledTime = validated.scheduledAt.getTime();
+    const targetScheduledAt = rawScheduledTime < now ? new Date(now) : validated.scheduledAt;
+    const scheduledTime = targetScheduledAt.getTime();
 
     // 3. Generate deterministic idempotencyKey if not provided
     const idempotencyKey =
@@ -77,7 +77,7 @@ export class EmailSchedulingService {
         recipientName: validated.recipientName || null,
         subject: validated.subject,
         body: validated.body,
-        scheduledAt: validated.scheduledAt,
+        scheduledAt: targetScheduledAt,
         status: EmailStatus.SCHEDULED,
         idempotencyKey,
       },
@@ -123,6 +123,20 @@ export class EmailSchedulingService {
         },
       });
 
+      // Index in Elasticsearch (non-blocking)
+      await ElasticsearchService.indexEmail({
+        scheduledEmailId: updatedEmail.id,
+        campaignId: campaign.id,
+        userId,
+        recipientEmail: updatedEmail.recipientEmail,
+        recipientName: updatedEmail.recipientName,
+        subject: updatedEmail.subject,
+        body: updatedEmail.body,
+        status: updatedEmail.status,
+        scheduledAt: updatedEmail.scheduledAt,
+        createdAt: updatedEmail.createdAt,
+      });
+
       return {
         scheduledEmailId: updatedEmail.id,
         queueJobId: job.id,
@@ -148,6 +162,9 @@ export class EmailSchedulingService {
           metadata: { error: errorMessage },
         },
       });
+
+      // Index failure status in Elasticsearch
+      await ElasticsearchService.updateEmailStatus(scheduledEmail.id, EmailStatus.FAILED);
 
       throw new Error(`Scheduling failed: ${errorMessage}`);
     }

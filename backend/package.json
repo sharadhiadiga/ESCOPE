@@ -8,11 +8,13 @@
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "worker": "tsx watch src/worker.ts",
-    "test": "tsx tests/db.test.ts && tsx tests/auth.test.ts && tsx tests/scheduling.test.ts && tsx tests/delivery.test.ts && tsx tests/throttling.test.ts && tsx tests/slack.test.ts",
+    "test": "tsx tests/db.test.ts && tsx tests/auth.test.ts && tsx tests/scheduling.test.ts && tsx tests/delivery.test.ts && tsx tests/throttling.test.ts && tsx tests/slack.test.ts && tsx tests/elasticsearch.test.ts && tsx tests/dashboard.test.ts && tsx tests/campaign.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },
   "dependencies": {
+    "@bull-board/api": "^9.10.1",
+    "@bull-board/express": "^9.10.1",
     "@elastic/elasticsearch": "^8.11.0",
     "@prisma/client": "^5.22.0",
     "bullmq": "^5.1.0",

@@ -4,7 +4,7 @@ import { z } from 'zod';
 export const createScheduledEmailSchema = z.object({
   campaignId: z.string().uuid(),
   recipientEmail: z.string().email(),
-  recipientName: z.string().optional(),
+  recipientName: z.string().nullable().optional(),
   subject: z.string().min(1),
   body: z.string().min(1),
   scheduledAt: z.coerce.date(),

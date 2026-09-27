@@ -1,5 +1,6 @@
 import { prisma } from '../db';
 import { z } from 'zod';
+import { env } from '../config/env';
 
 export const createEmailAccountSchema = z.object({
   userId: z.string().uuid(),
@@ -53,6 +54,27 @@ export class EmailAccountService {
         // Exclude smtpPassword from API/default queries for security
       },
     });
+  }
+
+  static async ensureUserAccount(userId: string, userEmail?: string) {
+    const existing = await this.findAccountsByUserId(userId);
+    if (existing.length > 0) {
+      return existing;
+    }
+
+    const senderEmail = userEmail || `sender_${userId.slice(0, 8)}@ethereal.email`;
+    await this.createEmailAccount({
+      userId,
+      email: senderEmail,
+      displayName: 'Default Sender',
+      smtpHost: env.ETHEREAL_HOST || 'smtp.ethereal.email',
+      smtpPort: env.ETHEREAL_PORT || 587,
+      smtpUser: env.ETHEREAL_USER || senderEmail,
+      smtpPassword: env.ETHEREAL_PASSWORD || 'ethereal_password',
+      provider: 'ethereal',
+    });
+
+    return this.findAccountsByUserId(userId);
   }
 
   static async getAccountWithCredentials(id: string) {

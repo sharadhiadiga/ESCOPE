@@ -1,11 +1,16 @@
 import app from './app';
 import { env } from './config/env';
+import { ElasticsearchService } from './services/elasticsearch.service';
 
 const PORT = env.PORT;
 
 const server = app.listen(PORT, () => {
   console.log(`🚀 ReachInbox Backend API running on http://localhost:${PORT}`);
   console.log(`🏥 Health check available at http://localhost:${PORT}/health`);
+
+  ElasticsearchService.initializeIndex().catch((err) => {
+    console.warn('[Elasticsearch] Non-blocking startup initialization error:', err?.message || err);
+  });
 });
 
 const gracefulShutdown = () => {
