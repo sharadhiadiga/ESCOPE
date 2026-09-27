@@ -1,0 +1,2 @@
+// Components index placeholder
+export {};

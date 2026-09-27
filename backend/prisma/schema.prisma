@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  PROCESSING
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+enum EmailStatus {
+  SCHEDULED
+  QUEUED
+  PROCESSING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum DeliveryEventType {
+  QUEUED
+  PROCESSING
+  SENT
+  FAILED
+  RESCHEDULED
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  name          String?
+  avatarUrl     String?
+  googleId      String?        @unique
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  emailAccounts EmailAccount[]
+  campaigns     Campaign[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model EmailAccount {
+  id           String     @id @default(uuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email        String
+  displayName  String?
+  smtpHost     String
+  smtpPort     Int
+  smtpUser     String
+  smtpPassword String
+  provider     String     @default("ethereal")
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  campaigns    Campaign[]
+
+  @@index([userId])
+  @@index([email])
+  @@map("email_accounts")
+}
+
+model Campaign {
+  id                   String           @id @default(uuid())
+  userId               String
+  user                 User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  senderAccountId      String
+  senderAccount        EmailAccount     @relation(fields: [senderAccountId], references: [id], onDelete: Cascade)
+  name                 String
+  subject              String
+  body                 String           @db.Text
+  startAt              DateTime
+  delayBetweenEmailsMs Int              @default(2000)
+  hourlyLimit          Int              @default(200)
+  status               CampaignStatus   @default(DRAFT)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  scheduledEmails      ScheduledEmail[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([startAt])
+  @@map("campaigns")
+}
+
+model ScheduledEmail {
+  id             String        @id @default(uuid())
+  campaignId     String
+  campaign       Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  recipientEmail String
+  recipientName  String?
+  subject        String
+  body           String        @db.Text
+  scheduledAt    DateTime
+  sentAt         DateTime?
+  status         EmailStatus   @default(SCHEDULED)
+  errorMessage   String?
+  attemptCount   Int           @default(0)
+  queueJobId     String?
+  idempotencyKey String        @unique
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deliveryLogs   DeliveryLog[]
+
+  @@index([campaignId])
+  @@index([recipientEmail])
+  @@index([scheduledAt])
+  @@index([status])
+  @@index([sentAt])
+  @@index([queueJobId])
+  @@index([idempotencyKey])
+  @@map("scheduled_emails")
+}
+
+model DeliveryLog {
+  id               String            @id @default(uuid())
+  scheduledEmailId String
+  scheduledEmail   ScheduledEmail    @relation(fields: [scheduledEmailId], references: [id], onDelete: Cascade)
+  eventType        DeliveryEventType
+  metadata         Json?
+  createdAt        DateTime          @default(now())
+
+  @@index([scheduledEmailId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("delivery_logs")
+}

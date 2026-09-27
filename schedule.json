@@ -1,0 +1,1 @@
+{"campaignId":"e9afbae1-a3f5-4a93-914a-9a03a9081df6","recipientEmail":"test_lead@example.com","recipientName":"Phase 5 Test Recipient","subject":"Real Ethereal SMTP Test","body":"<h2>Hello!</h2><p>This is a real Phase 5 email sent through Nodemailer and Ethereal.</p>","scheduledAt":"2026-09-27T06:25:01.478Z"}
