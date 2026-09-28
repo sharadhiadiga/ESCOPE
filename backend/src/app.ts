@@ -17,9 +17,23 @@ const app: Express = express();
 app.set('trust proxy', 1);
 
 // Middleware
+const frontendUrlNormalized = env.FRONTEND_URL.replace(/\/$/, '');
+const isProduction = env.NODE_ENV === 'production';
+
 app.use(
   cors({
-    origin: env.FRONTEND_URL,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const cleanOrigin = origin.replace(/\/$/, '');
+      if (
+        cleanOrigin === frontendUrlNormalized ||
+        cleanOrigin === 'http://localhost:5173' ||
+        cleanOrigin === 'http://localhost:3000'
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     credentials: true,
   })
 );
@@ -35,8 +49,8 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     },
   })

@@ -41,7 +41,8 @@ export default function App() {
   // Compose State
   const [showCompose, setShowCompose] = useState<boolean>(false);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const rawApiUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+  const API_URL = rawApiUrl.replace(/\/$/, '').replace(/\/api$/, '');
 
   // Check URL query parameters for auth errors
   useEffect(() => {

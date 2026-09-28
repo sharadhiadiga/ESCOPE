@@ -23,23 +23,40 @@ router.get('/google', (req: Request, res: Response, next: NextFunction) => {
 router.get(
   '/google/callback',
   (req: Request, res: Response, next: NextFunction) => {
+    console.log('[AUTH] Google callback reached');
     passport.authenticate('google', (err: any, user: any) => {
+      const frontendUrl = env.FRONTEND_URL.replace(/\/$/, '');
       if (err || !user) {
         const errorMsg = err?.message ? encodeURIComponent(err.message) : 'authentication_failed';
-        return res.redirect(`${env.FRONTEND_URL}/login?error=${errorMsg}`);
+        console.error('[AUTH] Google OAuth error:', err || 'No user returned from strategy');
+        return res.redirect(`${frontendUrl}/login?error=${errorMsg}`);
       }
+      console.log(`[AUTH] User authenticated: true (ID: ${user.id})`);
       req.logIn(user, (loginErr) => {
         if (loginErr) {
-          return res.redirect(`${env.FRONTEND_URL}/login?error=session_error`);
+          console.error('[AUTH] Session login error:', loginErr);
+          return res.redirect(`${frontendUrl}/login?error=session_error`);
         }
-        return res.redirect(`${env.FRONTEND_URL}/dashboard`);
+        console.log(`[AUTH] Session ID exists: ${!!req.sessionID}`);
+        req.session.save((saveErr) => {
+          if (saveErr) {
+            console.error('[AUTH] Session save error:', saveErr);
+            return res.redirect(`${frontendUrl}/login?error=session_save_error`);
+          }
+          console.log('[AUTH] Session saved successfully');
+          return res.redirect(`${frontendUrl}/dashboard`);
+        });
       });
     })(req, res, next);
   }
 );
 
 // 3. GET /auth/me - Return Currently Authenticated User
-router.get('/me', requireAuth, (req: Request, res: Response) => {
+router.get('/me', (req: Request, res: Response, next: NextFunction) => {
+  const isAuthenticated = !!(req.isAuthenticated && req.isAuthenticated() && req.user);
+  console.log(`[AUTH] /auth/me authenticated: ${isAuthenticated}`);
+  next();
+}, requireAuth, (req: Request, res: Response) => {
   const user = req.user as AuthenticatedUser;
   return res.status(200).json({
     id: user.id,
