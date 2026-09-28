@@ -5,9 +5,12 @@ import { UserProfile } from '../types/auth';
 interface HeaderProps {
   user: UserProfile;
   onLogout: () => void;
+  apiUrl?: string;
 }
 
-export const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
+export const Header: React.FC<HeaderProps> = ({ user, onLogout, apiUrl = 'http://localhost:5000' }) => {
+  const adminQueuesUrl = `${apiUrl.replace(/\/$/, '')}/admin/queues`;
+
   return (
     <header className="border-b border-gray-200 bg-white px-6 py-3 flex items-center justify-between gap-4">
       <div className="flex items-center gap-3">
@@ -23,11 +26,11 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
       <div className="flex items-center gap-3">
         {/* Link to BullMQ Queue Dashboard */}
         <a
-          href="http://localhost:5000/admin/queues"
+          href={adminQueuesUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-medium transition flex items-center gap-1.5"
-          title="Open BullMQ Queue Dashboard on http://localhost:5000/admin/queues"
+          title={`Open BullMQ Queue Dashboard on ${adminQueuesUrl}`}
         >
           <Layers className="w-3.5 h-3.5" />
           <span>BullMQ Dashboard</span>

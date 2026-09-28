@@ -300,7 +300,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#F7F8F7] text-gray-800 flex flex-col">
       {/* Top Header Navigation */}
-      <Header user={user} onLogout={handleLogout} />
+      <Header user={user} onLogout={handleLogout} apiUrl={API_URL} />
 
       {/* Main Body with Email Client Left Sidebar */}
       <div className="flex-1 flex overflow-hidden">
@@ -382,7 +382,7 @@ export default function App() {
               )}
 
               <a
-                href="http://localhost:5000/admin/queues"
+                href={`${API_URL.replace(/\/$/, '')}/admin/queues`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full px-3 py-2 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition flex items-center justify-between"
@@ -561,13 +561,13 @@ export default function App() {
                 <div className="bg-gray-50 p-2.5 rounded-lg border border-gray-200">
                   <span className="text-gray-500 block text-[10px] mb-0.5">Redis & BullMQ</span>
                   <span className="font-semibold text-emerald-700 flex items-center gap-1">
-                    <Layers className="w-3 h-3 text-emerald-600" /> localhost:6379
+                    <Layers className="w-3 h-3 text-emerald-600" /> Connected
                   </span>
                 </div>
                 <div className="bg-gray-50 p-2.5 rounded-lg border border-gray-200">
                   <span className="text-gray-500 block text-[10px] mb-0.5">Elasticsearch</span>
                   <span className="font-semibold text-emerald-700 flex items-center gap-1">
-                    <ShieldAlert className="w-3 h-3 text-emerald-600" /> localhost:9200
+                    <ShieldAlert className="w-3 h-3 text-emerald-600" /> Ready
                   </span>
                 </div>
                 <div className="bg-gray-50 p-2.5 rounded-lg border border-gray-200">

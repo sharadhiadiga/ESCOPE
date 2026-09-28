@@ -4,9 +4,11 @@ import { ElasticsearchService } from './services/elasticsearch.service';
 
 const PORT = env.PORT;
 
-const server = app.listen(PORT, () => {
-  console.log(`🚀 ReachInbox Backend API running on http://localhost:${PORT}`);
-  console.log(`🏥 Health check available at http://localhost:${PORT}/health`);
+const HOST = '0.0.0.0';
+
+const server = app.listen(PORT, HOST, () => {
+  console.log(`🚀 ReachInbox Backend API running on port ${PORT} (${HOST})`);
+  console.log(`🏥 Health check available at /health`);
 
   ElasticsearchService.initializeIndex().catch((err) => {
     console.warn('[Elasticsearch] Non-blocking startup initialization error:', err?.message || err);

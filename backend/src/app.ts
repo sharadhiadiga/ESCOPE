@@ -13,6 +13,9 @@ import { requireAuth } from './middleware/auth';
 
 const app: Express = express();
 
+// Trust Railway/reverse proxy headers for HTTPS session cookies
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(
   cors({
